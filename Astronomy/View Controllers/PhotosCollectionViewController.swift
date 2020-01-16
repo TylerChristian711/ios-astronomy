@@ -14,7 +14,7 @@ class PhotosCollectionViewController: UIViewController {
     // Properties
     
     private let client = MarsRoverClient()
-    
+    var cache = Cache<Int, Data>()
     private var roverInfo: MarsRover? {
         didSet {
             solDescription = roverInfo?.solDescriptions[105]
@@ -54,7 +54,7 @@ class PhotosCollectionViewController: UIViewController {
     
     // UICollectionViewDataSource/Delegate
     
-   
+    
     
     // MARK: - Private
     
@@ -62,55 +62,66 @@ class PhotosCollectionViewController: UIViewController {
         
         let photoReference = photoReferences[indexPath.item]
         guard let imageURL = photoReference.imageURL.usingHTTPS else { return }
-        URLSession.shared.dataTask(with: imageURL) { (data, _, error) in
-            if let _ = error {
-                return
-            }
-            
-            guard let data = data else { return }
-            if self.collectionView.cellForItem(at: indexPath) == cell {
-            DispatchQueue.main.async {
-                cell.imageView.image = UIImage(data: data)
-              }
-            }
-        }.resume()
+        
+        if cache.contains(photoReference.id) {
+            guard let data = cache.value(for: photoReference.id) else { return }
+            cell.imageView.image = UIImage(data: data)
+        } else {
+            URLSession.shared.dataTask(with: imageURL) { (data, _, error) in
+                if let _ = error {
+                    return
+                }
+                
+                guard let data = data else { return }
+                self.cache.cache(value: data, for: photoReference.id)
+                
+                DispatchQueue.main.async {
+                if self.collectionView.cellForItem(at: indexPath) == cell {
+                        cell.imageView.image = UIImage(data: data)
+                        
+                    }
+                }
+            }.resume()
+        }
+        
+        
     }
 }
 
 extension PhotosCollectionViewController: UICollectionViewDataSource, UICollectionViewDelegateFlowLayout {
     
     func numberOfSections(in collectionView: UICollectionView) -> Int {
-           return 1
-       }
-       
-       func collectionView(_ collectionView: UICollectionView, numberOfItemsInSection section: Int) -> Int {
-           return photoReferences.count
-       }
-       
-       func collectionView(_ collectionView: UICollectionView, cellForItemAt indexPath: IndexPath) -> UICollectionViewCell {
-           let cell = collectionView.dequeueReusableCell(withReuseIdentifier: "ImageCell", for: indexPath) as? ImageCollectionViewCell ?? ImageCollectionViewCell()
-           
-           loadImage(forCell: cell, forItemAt: indexPath)
-           
-           return cell
-       }
-       
-       // Make collection view cells fill as much available width as possible
-       func collectionView(_ collectionView: UICollectionView, layout collectionViewLayout: UICollectionViewLayout, sizeForItemAt indexPath: IndexPath) -> CGSize {
-           let flowLayout = collectionViewLayout as! UICollectionViewFlowLayout
-           var totalUsableWidth = collectionView.frame.width
-           let inset = self.collectionView(collectionView, layout: collectionViewLayout, insetForSectionAt: indexPath.section)
-           totalUsableWidth -= inset.left + inset.right
-           
-           let minWidth: CGFloat = 150.0
-           let numberOfItemsInOneRow = Int(totalUsableWidth / minWidth)
-           totalUsableWidth -= CGFloat(numberOfItemsInOneRow - 1) * flowLayout.minimumInteritemSpacing
-           let width = totalUsableWidth / CGFloat(numberOfItemsInOneRow)
-           return CGSize(width: width, height: width)
-       }
-       
-       // Add margins to the left and right side
-       func collectionView(_ collectionView: UICollectionView, layout collectionViewLayout: UICollectionViewLayout, insetForSectionAt section: Int) -> UIEdgeInsets {
-           return UIEdgeInsets(top: 0, left: 10.0, bottom: 0, right: 10.0)
-       }
+        return 1
+    }
+    
+    func collectionView(_ collectionView: UICollectionView, numberOfItemsInSection section: Int) -> Int {
+        return photoReferences.count
+    }
+    
+    func collectionView(_ collectionView: UICollectionView, cellForItemAt indexPath: IndexPath) -> UICollectionViewCell {
+        let cell = collectionView.dequeueReusableCell(withReuseIdentifier: "ImageCell", for: indexPath) as? ImageCollectionViewCell ?? ImageCollectionViewCell()
+        
+        loadImage(forCell: cell, forItemAt: indexPath)
+        
+        return cell
+    }
+    
+    // Make collection view cells fill as much available width as possible
+    func collectionView(_ collectionView: UICollectionView, layout collectionViewLayout: UICollectionViewLayout, sizeForItemAt indexPath: IndexPath) -> CGSize {
+        let flowLayout = collectionViewLayout as! UICollectionViewFlowLayout
+        var totalUsableWidth = collectionView.frame.width
+        let inset = self.collectionView(collectionView, layout: collectionViewLayout, insetForSectionAt: indexPath.section)
+        totalUsableWidth -= inset.left + inset.right
+        
+        let minWidth: CGFloat = 150.0
+        let numberOfItemsInOneRow = Int(totalUsableWidth / minWidth)
+        totalUsableWidth -= CGFloat(numberOfItemsInOneRow - 1) * flowLayout.minimumInteritemSpacing
+        let width = totalUsableWidth / CGFloat(numberOfItemsInOneRow)
+        return CGSize(width: width, height: width)
+    }
+    
+    // Add margins to the left and right side
+    func collectionView(_ collectionView: UICollectionView, layout collectionViewLayout: UICollectionViewLayout, insetForSectionAt section: Int) -> UIEdgeInsets {
+        return UIEdgeInsets(top: 0, left: 10.0, bottom: 0, right: 10.0)
+    }
 }
